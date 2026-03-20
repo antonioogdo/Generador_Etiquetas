@@ -1,0 +1,424 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Herramientas de Etiquetas</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+
+<style>
+
+:root{
+--bg:#f3f6fb;
+--panel:#ffffff;
+--text:#1a1a1a;
+--header:#1f2d3d;
+--nav:#2f80ed;
+--border:#ddd;
+}
+
+body{
+font-family:Segoe UI, Arial;
+margin:0;
+background:var(--bg);
+color:var(--text);
+}
+
+header{
+background:var(--header);
+color:white;
+padding:15px 30px;
+font-size:20px;
+font-weight:bold;
+}
+
+nav{
+background:var(--nav);
+padding:10px;
+display:flex;
+gap:6px;
+}
+
+.container{
+padding:20px;
+}
+
+.panel{
+background:var(--panel);
+padding:20px;
+border-radius:8px;
+margin-bottom:20px;
+border:1px solid var(--border);
+}
+
+.help{
+background:#eef6ff;
+border-left:5px solid #2f80ed;
+}
+
+/* DROP */
+
+#dropZone{
+border:2px dashed var(--border);
+text-align:center;
+padding:60px;
+cursor:pointer;
+border-radius:10px;
+transition:0.2s;
+}
+
+#dropZone.dragover{
+background:rgba(0,122,204,0.1);
+border-color:#007acc;
+}
+
+/* BOTONES */
+
+button{
+background:#1c57a5;
+color:white;
+border:none;
+padding:12px 16px;
+border-radius:6px;
+cursor:pointer;
+margin:5px;
+}
+
+button:hover{
+background:#1c60b3;
+}
+
+button.secondary{
+background:#6c757d;
+}
+
+textarea{
+width:100%;
+height:150px;
+font-family:monospace;
+padding:10px;
+border-radius:5px;
+border:1px solid var(--border);
+}
+
+iframe{
+width:100%;
+height:600px;
+border:1px solid var(--border);
+}
+
+/* BARCODE */
+
+#barcodeResultado{
+display:flex;
+flex-wrap:wrap;
+}
+
+.barcodeCard{
+border:1px solid var(--border);
+padding:10px;
+margin:10px;
+border-radius:6px;
+}
+
+/* MOBILE */
+
+@media(max-width:768px){
+iframe{height:400px}
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+Herramientas de Etiquetas
+</header>
+
+<nav>
+
+<button onclick="mostrarTab('zpl')">Etiquetas ZPL</button>
+<button onclick="mostrarTab('barcode')">Codigo de barra</button>
+
+</nav>
+
+<div class="container">
+
+<!-- ================= ZPL ================= -->
+
+<div id="tab_zpl">
+
+<div class="panel help">
+<h3>¿Cómo usar?</h3>
+<ol>
+<li>Carga tu archivo arrastrándolo o haciendo clic</li>
+<li>O usa el ejemplo y modifícalo</li>
+<li>Navega entre etiquetas</li>
+<li>Descarga el resultado</li>
+</ol>
+</div>
+
+<div class="panel">
+
+<div id="dropZone">
+<h2>📂 Cargar etiquetas</h2>
+<p><b>Arrastra tu archivo aquí</b></p>
+<p>o haz clic para seleccionarlo</p>
+<p style="font-size:12px;opacity:0.7">.zpl / .txt</p>
+<input type="file" id="archivo" hidden>
+</div>
+
+</div>
+
+<div class="panel">
+
+<h3>Ejemplo de código ZPL</h3>
+
+<textarea id="zplTexto">
+^XA
+^FO50,50^A0N,40,40^FDProducto:^FS
+^FO50,100^A0N,50,50^FDSUEROX MANZANA^FS
+^FO50,170^A0N,40,40^FDPrecio:^FS
+^FO200,170^A0N,40,40^FD$25.00^FS
+^BY2,2,80
+^FO50,230^BCN,,Y,N,N
+^FD123456789012^FS
+^XZ
+</textarea>
+
+<br>
+<button onclick="cargarTexto()">Generar Etiqueta</button>
+
+</div>
+
+<div class="panel">
+
+<h4>Navegación</h4>
+<button class="secondary" onclick="prev()">⬅ Anterior</button>
+<button onclick="next()">Siguiente ➡</button>
+
+<h4>Descargas</h4>
+<button onclick="descargarPDF()">📥 Página</button>
+<button onclick="descargarTodo()">📦 Todas</button>
+
+<p id="info"></p>
+
+</div>
+
+<div id="loader" style="display:none;text-align:center">
+⏳ Generando etiquetas...
+</div>
+
+<div class="panel">
+<iframe id="visor"></iframe>
+</div>
+
+</div>
+
+<!-- ================= BARCODE ================= -->
+
+<div id="tab_barcode" style="display:none">
+
+<div class="panel">
+
+<textarea id="listaCodigos" placeholder="Un código por línea"></textarea>
+<br>
+<button onclick="generarBarcodes()">Generar</button>
+
+</div>
+
+<div class="panel" id="barcodeResultado"></div>
+
+</div>
+
+</div>
+
+<script>
+
+/* TABS */
+
+function mostrarTab(tab){
+document.getElementById("tab_zpl").style.display="none"
+document.getElementById("tab_barcode").style.display="none"
+document.getElementById("tab_"+tab).style.display="block"
+}
+
+/* ZPL */
+
+let etiquetas=[]
+let pagina=0
+let porPagina=20
+let ultimoPDF=null
+
+function procesarZPL(zpl){
+
+const matches=zpl.match(/\^XA[\s\S]*?\^XZ/g)
+
+etiquetas=matches?matches:[]
+
+if(etiquetas.length===0){
+alert("No se detectaron etiquetas")
+return
+}
+
+pagina=0
+mostrar()
+
+}
+
+/* FILE */
+
+const dropZone=document.getElementById("dropZone")
+const archivo=document.getElementById("archivo")
+
+dropZone.onclick=()=>archivo.click()
+
+archivo.onchange=()=>leerArchivo(archivo.files[0])
+
+dropZone.ondragover=e=>{
+e.preventDefault()
+dropZone.classList.add("dragover")
+}
+
+dropZone.ondragleave=()=>dropZone.classList.remove("dragover")
+
+dropZone.ondrop=e=>{
+e.preventDefault()
+dropZone.classList.remove("dragover")
+leerArchivo(e.dataTransfer.files[0])
+}
+
+function leerArchivo(file){
+const reader=new FileReader()
+reader.onload=e=>procesarZPL(e.target.result)
+reader.readAsText(file)
+}
+
+function cargarTexto(){
+procesarZPL(document.getElementById("zplTexto").value)
+}
+
+/* MOSTRAR */
+
+async function mostrar(){
+
+document.getElementById("loader").style.display="block"
+
+const inicio=pagina*porPagina
+const subset=etiquetas.slice(inicio,inicio+porPagina)
+
+const res=await fetch("https://api.labelary.com/v1/printers/8dpmm/labels/4x6/",{
+method:"POST",
+headers:{
+"Content-Type":"application/x-www-form-urlencoded",
+"Accept":"application/pdf"
+},
+body:subset.join("\n")
+})
+
+const blob=await res.blob()
+
+ultimoPDF=blob
+
+document.getElementById("visor").src=URL.createObjectURL(blob)
+
+document.getElementById("loader").style.display="none"
+
+document.getElementById("info").innerHTML=
+`📄 Página <b>${pagina+1}</b> de <b>${Math.ceil(etiquetas.length/porPagina)}</b>
+ | 🏷 ${etiquetas.length} etiquetas`
+
+if(pagina>0){
+document.getElementById("visor").scrollIntoView({behavior:"smooth"})
+}
+
+}
+
+/* PAGINAS */
+
+function next(){
+if((pagina+1)*porPagina<etiquetas.length){pagina++;mostrar()}
+}
+
+function prev(){
+if(pagina>0){pagina--;mostrar()}
+}
+
+/* DESCARGAS */
+
+function descargarPDF(){
+if(!ultimoPDF)return
+const a=document.createElement("a")
+a.href=URL.createObjectURL(ultimoPDF)
+a.download="pagina_"+(pagina+1)+".pdf"
+a.click()
+}
+
+async function descargarTodo(){
+
+if(etiquetas.length===0)return
+
+const res=await fetch("https://api.labelary.com/v1/printers/8dpmm/labels/4x6/",{
+method:"POST",
+headers:{
+"Content-Type":"application/x-www-form-urlencoded",
+"Accept":"application/pdf"
+},
+body:etiquetas.join("\n")
+})
+
+const blob=await res.blob()
+
+const a=document.createElement("a")
+a.href=URL.createObjectURL(blob)
+a.download="todas_etiquetas.pdf"
+a.click()
+
+}
+
+/* BARCODE */
+
+function generarBarcodes(){
+
+const cont=document.getElementById("barcodeResultado")
+cont.innerHTML=""
+
+const codigos=document.getElementById("listaCodigos").value
+.split("\n")
+.map(x=>x.trim())
+.filter(x=>x)
+
+codigos.forEach(codigo=>{
+
+const card=document.createElement("div")
+card.className="barcodeCard"
+
+const svg=document.createElementNS("http://www.w3.org/2000/svg","svg")
+
+card.appendChild(svg)
+cont.appendChild(card)
+
+JsBarcode(svg,codigo,{format:"CODE128",height:80})
+
+})
+
+}
+
+/* AUTO GENERAR AL INICIO */
+
+window.onload=()=>{
+
+cargarTexto()
+
+}
+
+</script>
+
+</body>
+</html>
+```
