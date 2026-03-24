@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Herramientas de Etiquetas</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bwip-js/dist/bwip-js-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root{
+--bg:#f3f6fb;
+--panel:#ffffff;
+--text:#1a1a1a;
+--header:#1f2d3d;
+--nav:#70757c0b;
+--border:#ddd;
+}
+body{font-family:Segoe UI, Arial;margin:0;background:var(--bg);color:var(--text);}
+header{background:var(--header);color:white;padding:15px 30px;font-size:20px;font-weight:bold;}
+nav{background:var(--nav);padding:10px;display:flex;gap:6px;}
+.container{padding:20px;}
+.panel{background:var(--panel);padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid var(--border);}
+#dropZone{border:2px dashed var(--border);text-align:center;padding:60px;cursor:pointer;border-radius:10px;}
+button{background:#1c57a5;color:white;border:none;padding:10px 14px;border-radius:6px;cursor:pointer;margin:5px;}
+button:disabled{opacity:0.4;cursor:not-allowed;}
+.carousel{position:relative;}
+.carousel iframe{width:100%;height:600px;border:1px solid var(--border);}
+.navBtn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);color:white;border-radius:50%;padding:10px;border:none;}
+#btnPrev{left:10px;}
+#btnNext{right:10px;}
+#dots{text-align:center;margin-top:10px;font-size:20px;}
+.barcodeCard{border:1px solid var(--border);padding:10px;margin:10px;display:inline-block;text-align:center;}
+textarea{width:100%;height:220px;font-family:monospace;}
+select,input{padding:8px;margin-bottom:10px;}
+
+#dropZone.dragover{
+    background:#e8f0fe;
+    border-color:#1c57a5;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>Herramientas de Etiquetas</header>
+
+<nav>
+<button onclick="mostrarTab('zpl')">Generacion de Etiquetas</button>
+<button onclick="mostrarTab('barcode')">Codigo de barra</button>
+</nav>
+
+<div class="container">
+
+<!-- ZPL -->
+<div id="tab_zpl">
+
+<div class="panel">
+<div id="dropZone" onclick="archivo.click()">📂 Cargar etiquetas</div>
+<input type="file" id="archivo" hidden>
+</div>
+
+<div class="panel">
+<textarea id="zplTexto">^XA
+
+^FX Top section with logo, name and address.
+^CF0,60
+^FO50,50^GB100,100,100^FS
+^FO75,75^FR^GB100,100,100^FS
+^FO93,93^GB40,40,40^FS
+^FO220,50^FDIntershipping, Inc.^FS
+^CF0,30
+^FO220,115^FD1000 Shipping Lane^FS
+^FO220,155^FDShelbyville TN 38102^FS
+^FO220,195^FDUnited States (USA)^FS
+^FO50,250^GB700,3,3^FS
+
+^FX Second section with recipient address and permit information.
+^CFA,30
+^FO50,300^FDJohn Doe^FS
+^FO50,340^FD100 Main Street^FS
+^FO50,380^FDSpringfield TN 39021^FS
+^FO50,420^FDUnited States (USA)^FS
+^CFA,15
+^FO600,300^GB150,150,3^FS
+^FO638,340^FDPermit^FS
+^FO638,390^FD123456^FS
+^FO50,500^GB700,3,3^FS
+
+^FX Third section with bar code.
+^BY5,2,270
+^FO100,550^BC^FD12345678^FS
+
+^FX Fourth section (the two boxes on the bottom).
+^FO50,900^GB700,250,3^FS
+^FO400,900^GB3,250,3^FS
+^CF0,40
+^FO100,960^FDCtr. X34B-1^FS
+^FO100,1010^FDREF1 F00B47^FS
+^FO100,1060^FDREF2 BL4H8^FS
+^CF0,190
+^FO470,955^FDCA^FS
+
+^XZ
+
+</textarea>
+<br>
+<button onclick="cargarTexto()">Generar Etiqueta</button>
+</div>
+
+<div class="panel">
+<div class="carousel">
+<iframe id="visor"></iframe>
+<button id="btnPrev" class="navBtn" onclick="prev()">⬅</button>
+<button id="btnNext" class="navBtn" onclick="next()">➡</button>
+</div>
+<div id="dots"></div>
+<p id="info"></p>
+</div>
+
+</div>
+
+<!-- BARCODE -->
+<div id="tab_barcode" style="display:none">
+
+<div class="panel">
+
+<select id="tipoBarcode">
+<option value="CODE128">Code 128</option>
+<option value="EAN13">EAN-13</option>
+<option value="EAN8">EAN-8</option>
+<option value="CODE39">Code 39</option>
+<option value="ITF">ITF</option>
+<option value="MSI">MSI</option>
+<option value="QR">QR Code</option>
+<option value="DATAMATRIX">DataMatrix</option>
+<option value="PDF417">PDF417</option>
+</select>
+
+<!-- 🔥 CONTENEDOR QR -->
+<div id="qrSizeContainer" style="display:none">
+<label>📏 Tamaño QR (px):</label>
+<input type="number" id="qrSize" value="120" min="50" max="500">
+</div>
+
+<textarea id="listaCodigos"></textarea>
+
+<br>
+<button onclick="generarBarcodes()">Generar</button>
+<button id="btnPDF" onclick="exportarPDF()">Exportar PDF</button>
+<button id="btnPNG" onclick="exportarPNG()" style="display:none">Exportar PNG</button>
+<button onclick="toggleSeleccion()">Seleccionar todo</button>
+
+</div>
+
+<div id="barcodeResultado"></div>
+
+</div>
+
+</div>
+
+<script>
+
+/* EJEMPLOS */
+function ejemplos(tipo){
+
+switch(tipo){
+
+case "QR":
+return "https://google.com\nhttps://openai.com\nHola Mundo QR"
+
+case "EAN13":
+return "7501031311309\n1234567890128\n7894561230123"
+
+case "EAN8":
+return "12345670\n55123457\n96385074"
+
+case "CODE128":
+return "ABC123456\nSKU-001\nTEST-789"
+
+case "CODE39":
+return "ABC123\nHELLO123\nCODE39TEST"
+
+case "ITF":
+return "12345678\n87654321\n11223344"
+
+case "MSI":
+return "123456\n789012\n456789"
+
+case "DATAMATRIX":
+return "DM-001\nProducto 123\nLote A1"
+
+case "PDF417":
+return "PDF417 DEMO TEXTO LARGO\nFactura 123456789\nCliente: Juan Perez"
+
+default:
+return "123456789012\nABC123456\n789456123\nSKU-001"
+
+}
+
+}
+/* CONTROL UI */
+tipoBarcode.addEventListener("change", ()=>{
+
+const tipo = tipoBarcode.value
+
+listaCodigos.value = ejemplos(tipo)
+barcodeResultado.innerHTML=""
+
+btnPNG.style.display = (tipo==="QR") ? "inline-block" : "none"
+btnPDF.style.display = (tipo==="QR") ? "none" : "inline-block"
+
+// 🔥 mostrar/ocultar tamaño QR
+document.getElementById("qrSizeContainer").style.display = (tipo==="QR") ? "block" : "none"
+
+})
+
+/* NAVEGACIÓN */
+function mostrarTab(tab){
+document.getElementById("tab_zpl").style.display="none"
+document.getElementById("tab_barcode").style.display="none"
+document.getElementById("tab_"+tab).style.display="block"
+if(tab==="barcode") generarBarcodes()
+}
+
+/* ZPL */
+let etiquetas=[], pagina=0, porPagina=20
+let visor=document.getElementById("visor")
+
+function procesarZPL(zpl){
+etiquetas = zpl.match(/\^XA[\s\S]*?\^XZ/g)||[]
+pagina=0
+mostrar()
+}
+
+function cargarTexto(){
+procesarZPL(zplTexto.value)
+}
+
+archivo.onchange=e=>{
+const r=new FileReader()
+r.onload=x=>procesarZPL(x.target.result)
+r.readAsText(e.target.files[0])
+}
+
+async function mostrar(){
+const subset=etiquetas.slice(pagina*porPagina,(pagina+1)*porPagina)
+
+const res=await fetch("https://api.labelary.com/v1/printers/8dpmm/labels/4x6/",{
+method:"POST",
+headers:{
+"Content-Type":"application/x-www-form-urlencoded",
+"Accept":"application/pdf"
+},
+body:subset.join("\n")
+})
+
+const blob=await res.blob()
+
+const nuevoVisor=visor.cloneNode(true)
+visor.parentNode.replaceChild(nuevoVisor,visor)
+visor=nuevoVisor
+
+visor.src=URL.createObjectURL(blob)
+
+const total=Math.ceil(etiquetas.length/porPagina)
+
+info.innerHTML=`Página ${pagina+1} de ${total}`
+
+btnPrev.disabled=(pagina===0)
+btnNext.disabled=(pagina>=total-1)
+
+dots.innerHTML=""
+for(let i=0;i<total;i++){
+dots.innerHTML+=(i===pagina?"● ":"○ ")
+}
+}
+
+function next(){ if((pagina+1)*porPagina<etiquetas.length){pagina++;mostrar()} }
+function prev(){ if(pagina>0){pagina--;mostrar()} }
+
+/* TOGGLE */
+function toggleSeleccion(){
+const checks=[...document.querySelectorAll(".barcodeCard input")]
+const all=checks.every(c=>c.checked)
+checks.forEach(c=>c.checked=!all)
+}
+
+/* GENERAR */
+function generarBarcodes(){
+
+barcodeResultado.innerHTML=""
+
+const tipo=tipoBarcode.value
+const size=parseInt(qrSize.value)||120
+
+const codigos=listaCodigos.value.split("\n").map(x=>x.trim()).filter(x=>x)
+
+codigos.forEach(codigo=>{
+
+const card=document.createElement("div")
+card.className="barcodeCard"
+
+const check=document.createElement("input")
+check.type="checkbox"
+check.checked=false
+
+const cont=document.createElement("div")
+
+card.appendChild(check)
+card.appendChild(document.createElement("br"))
+card.appendChild(cont)
+
+barcodeResultado.appendChild(card)
+
+if(tipo==="QR"){
+new QRCode(cont,{text:codigo,width:size,height:size})
+}else if(tipo==="DATAMATRIX"){
+const canvas=document.createElement("canvas")
+cont.appendChild(canvas)
+bwipjs.toCanvas(canvas,{bcid:'datamatrix',text:codigo,scale:3})
+}else if(tipo==="PDF417"){
+const canvas=document.createElement("canvas")
+cont.appendChild(canvas)
+bwipjs.toCanvas(canvas,{bcid:'pdf417',text:codigo,scale:2})
+}else{
+const svg=document.createElementNS("http://www.w3.org/2000/svg","svg")
+cont.appendChild(svg)
+try{
+JsBarcode(svg,codigo,{format:tipo,height:80,displayValue:true})
+}catch(e){
+svg.innerHTML="<text x='10' y='20' fill='red'>Error</text>"
+}
+}
+
+})
+
+}
+
+/* EXPORT PDF */
+async function exportarPDF(){
+
+const { jsPDF } = window.jspdf
+const pdf = new jsPDF()
+
+const cards=document.querySelectorAll(".barcodeCard")
+
+let y=10
+
+for(let card of cards){
+
+const check=card.querySelector("input")
+if(!check.checked) continue
+
+const cont=card.querySelector("div")
+
+const canvas=document.createElement("canvas")
+const ctx=canvas.getContext("2d")
+
+const img=new Image()
+
+const svg=cont.querySelector("svg")
+const qr=cont.querySelector("img")
+const cnv=cont.querySelector("canvas")
+
+let src=null
+
+if(svg){
+const data=new XMLSerializer().serializeToString(svg)
+src=URL.createObjectURL(new Blob([data]))
+}else if(qr){
+src=qr.src
+}else if(cnv){
+src=cnv.toDataURL()
+}
+
+await new Promise(res=>{
+img.onload=()=>{
+canvas.width=img.width
+canvas.height=img.height
+ctx.drawImage(img,0,0)
+
+pdf.addImage(canvas.toDataURL("image/png"),"PNG",30,y,150,50)
+
+y+=60
+if(y>260){pdf.addPage();y=10}
+
+res()
+}
+img.src=src
+})
+
+}
+
+pdf.save("barcodes.pdf")
+}
+
+/* EXPORT PNG */
+function exportarPNG(){
+document.querySelectorAll(".barcodeCard").forEach((card,i)=>{
+if(!card.querySelector("input").checked) return
+const img=card.querySelector("img")
+if(img){
+let a=document.createElement("a")
+a.href=img.src
+a.download=`QR_${i+1}.png`
+a.click()
+}
+})
+}
+
+/* INIT */
+window.onload=()=>{
+mostrarTab('zpl')
+cargarTexto()
+tipoBarcode.dispatchEvent(new Event("change"))
+}
+
+const dropZone = document.getElementById("dropZone")
+
+dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault()
+    dropZone.classList.add("dragover")
+})
+
+dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover")
+})
+
+dropZone.addEventListener("drop", (e) => {
+    e.preventDefault()
+    dropZone.classList.remove("dragover")
+
+    const files = e.dataTransfer.files
+    if(files.length === 0) return
+
+    const file = files[0]
+
+    if(!file.name.toLowerCase().endsWith(".zpl") && !file.name.toLowerCase().endsWith(".txt")){
+        alert("Solo se permiten archivos ZPL o TXT")
+        return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+        procesarZPL(event.target.result)
+        zplTexto.value = event.target.result // opcional: mostrar en textarea
+    }
+    reader.readAsText(file)
+})
+
+</script>
+
+</body>
+</html>
